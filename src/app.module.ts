@@ -5,26 +5,32 @@ import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
 import { AuthMiddleware } from './middleware/auth.middleware';
 import { DatabaseMiddleware } from './middleware/database.middleware';
-import { User, UserSchema } from './users/user.model';
+import { LikeItemModule } from './like-item/like-item.module';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import { MongooseModule } from '@nestjs/mongoose';
-import { UserService } from './users/user.service';
-import { UserController } from './users/user.controller';
+import databaseConfig from './config/database.config'; // Yukarıda oluşturduğunuz yapılandırma
 
 @Module({
   imports: [
     AuthModule,
+    LikeItemModule,
+    ConfigModule.forRoot({
+      isGlobal: true,
+      load: [databaseConfig],
+    }),
     MongooseModule.forRootAsync({
-      useFactory: () => ({
-        uri: 'mongodb://localhost/nestjs-mongodb',
+      imports: [ConfigModule],
+      useFactory: (configService: ConfigService) => ({
+        uri: configService.get<string>('database.uri'),
         useNewUrlParser: true,
         useUnifiedTopology: true,
       }),
+      inject: [ConfigService],
     }),
-    MongooseModule.forFeature([{ name: User.name, schema: UserSchema }]),
   ],
 
-  controllers: [AppController, UserController],
-  providers: [AppService, UserService],
+  controllers: [AppController],
+  providers: [AppService],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
