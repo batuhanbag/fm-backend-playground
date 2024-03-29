@@ -1,41 +1,66 @@
 /* eslint-disable @typescript-eslint/ban-ts-comment */
-import { Module, MiddlewareConsumer, NestModule } from '@nestjs/common';
+import {
+  Module,
+  MiddlewareConsumer,
+  NestModule,
+  DynamicModule,
+  Global
+} from '@nestjs/common';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
 import { AuthMiddleware } from './middleware/auth.middleware';
 import { DatabaseMiddleware } from './middleware/database.middleware';
-import { LikeItemModule } from './like-item/like-item.module';
 import { ConfigModule, ConfigService } from '@nestjs/config';
-import { MongooseModule } from '@nestjs/mongoose';
-import databaseConfig from './config/database.config'; // Yukarıda oluşturduğunuz yapılandırma
+import { MongooseModule, MongooseModuleOptions } from '@nestjs/mongoose';
+import databaseConfig from './config/database.config';
+import { ApiKeyModule } from './api-key/api-key.module';
+import { APP_INTERCEPTOR } from '@nestjs/core';
+import { DatabaseInterceptor } from './database/database.interceptor';
+import { DatabaseService } from './database/database.service';
 
+@Global()
+@Module({
+  controllers: [AppController],
+  providers: [AppService, DatabaseService]
+})
+export class SubAppModule {
+  static forRoot(databaseUri: string): DynamicModule {
+    const mongooseModuleOptions: MongooseModuleOptions = {
+      uri: databaseUri
+    };
+
+    return {
+      module: AppModule,
+      imports: [
+        MongooseModule.forRootAsync({
+          useFactory: () => mongooseModuleOptions
+        })
+      ]
+    };
+  }
+}
+
+@Global()
 @Module({
   imports: [
     AuthModule,
-    LikeItemModule,
-    ConfigModule.forRoot({
-      isGlobal: true,
-      load: [databaseConfig],
-    }),
-    MongooseModule.forRootAsync({
-      imports: [ConfigModule],
-      useFactory: (configService: ConfigService) => ({
-        uri: configService.get<string>('database.uri'),
-        useNewUrlParser: true,
-        useUnifiedTopology: true,
-      }),
-      inject: [ConfigService],
-    }),
+    ApiKeyModule,
+    // MongooseModule.forRoot(
+    //   'mongodb+srv://batu:YQsoxSONGkbEN4MU@cluster0.0okex.mongodb.net/test'
+    // ),
+    SubAppModule.forRoot(
+      'mongodb+srv://batu:YQsoxSONGkbEN4MU@cluster0.0okex.mongodb.net/test'
+    )
   ],
 
   controllers: [AppController],
-  providers: [AppService],
+  providers: [AppService, DatabaseService]
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
     const middlewares = [AuthMiddleware, DatabaseMiddleware];
-    middlewares.forEach((middleware) => {
+    middlewares.forEach(middleware => {
       consumer.apply(middleware).forRoutes('*');
     });
   }
